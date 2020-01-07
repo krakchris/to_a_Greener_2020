@@ -1,0 +1,150 @@
+
+```{r}
+
+## STEP 1: Get shapefile for city boundary
+
+# you can browse the web for shapefiles, use your own shapefiles or use the code below: 
+
+# get GADM and select city shape.
+# the shapefile is saved as ESRI shapefile and can be uploaded to GEE. 
+# When the file is uploaded to GEE it can be used as a Feature in the analysis. 
+library(rgdal)
+library(raster)
+indonesiaAdm <- raster::getData('GADM',country='NLD', level=2)
+head(indonesiaAdm@data)
+Adm <- subset(indonesiaAdm, NAME_2 == 'Amsterdam')
+plot(Adm)
+
+# the shape of your city is written to a ESRI shapefile, this shapefile can be uploaded to google earth engine. 
+writeOGR(obj=Adm, dsn=paste("amsterdam.shp", sep=""), layer="torn", driver="ESRI Shapefile")
+```
+
+
+```{r}
+
+# STEP 2: Read .tif files in folder
+library(rgdal)
+library(raster)
+
+# Before running this step use the GEE to export classified images with 3 classes. 
+# This part of the code will read all .tif files from a folder. The list of files will be used later to load the 
+# individual frames and build the visualizations. 
+
+getwd()
+
+city <- 'Amsterdam'
+
+setwd("your/output/folder/here")
+
+path = paste("/folder/with/.tif/files/here", city ,'/', sep = "")
+files <- list.files(path = path, pattern = '*.tif$')
+           
+```
+
+
+
+```{r}
+
+# STEP 3: Define visualization and export images
+
+# The list of .tif files will be used to load every section of the timed analysis and load it as a raster. The raster can be plotted and 
+# written to jpeg or GIF. There we loop over the raster files and plot the data. 
+# after this step there are 3 options to build an animation:
+# - load the individual files into blender as a image sequence, apply speed control to make it slower. (for use in film)
+# - upload the individual files to a GIF builder online
+# - Use the animation library and te saveGIF() function to write all individual plots to a gif straight from R
+
+library(animation)
+
+# these years correspnd to the year ranges in the google earth engine. 
+years = c(1989, 1991, 1993, 1995, 1997, 1999, 2001, 2003, 2005, 2007, 2009, 2011, 2013, 2015, 2018)
+  
+i = 1
+
+n <- length(years)
+
+df <- data.frame(year = years, urban = numeric(n), green = numeric(n))
+
+df$urban <- NA
+df$green <- NA
+
+## if you want to make a gif file uncomment this part and the part at the end of the codeblock
+# saveGIF(
+  
+for (str_name in files){
+  
+  
+  year <- years[i]
+  
+  print(year)
+  
+  imported_raster=raster(paste(path , str_name, sep=""))
+
+  #making colors below 100 red and above 180 blue in this example
+  
+  
+  counts <- tapply(area(imported_raster), imported_raster[], sum)
+  
+  Y = df$year == year 
+  
+  
+  
+  df[Y,]$urban <- counts[2]
+  df[Y,]$green <- counts[3]
+  
+
+  breakpoints <- c(0.5,1.5,2.5,3.5)
+  colors <- c("gray","blue","darkgreen")
+  
+  #par(mfrow=c(1,2))
+  jpeg(paste('gifs/',city, '_', year, '.jpg', sep = ""), height = 720 , width = 1280)
+  
+  par(fig=c(0,1,0.1,1))
+  plot(axes = FALSE, 
+       frame.plot = FALSE, legend = FALSE, box = FALSE, 
+       imported_raster, 
+       breaks=breakpoints, 
+       col=colors, 
+       # main = paste(city, year),
+       font.main=10,
+       cex.main = 2.5)
+  
+  title(paste(city, year), 
+        line = -40,        
+        font.main=30,
+       cex.main = 4)
+  
+  # par(fig=c(0.05,0.15,0.3,1), new=TRUE)
+  # barplot(names.arg=c('Urban', 'Green'), counts[2:3], col=c("grey","darkgreen"), ylim = c( 0 , 150 ))
+  
+  par(fig=c(0,1,0,1), new=TRUE)
+  # plot(names.arg=c('Urban', 'Green'), counts[2:3], col=c("grey","darkgreen"), ylim = c( 0 , 150 ))
+  
+  plot(df$year, df$urban, type="n", xlab="",
+   ylab="", ylim = c(0,200), 
+   axes = FALSE, frame.plot = FALSE)
+
+  lines(df$year, df$green, type="b", lwd=5, col='lightgreen')
+
+  
+  dev.off()
+  #plot(axes = FALSE, frame.plot = FALSE, legend = FALSE, box =FALSE, imported_raster, breaks=breakpoints, col=colors)
+  
+  i = i + 1
+    
+}
+
+## uncomment the following code if you want to export the entire result to a gif file. 
+# ,
+#   movie.name = "animation_200ms.gif",
+#   img.name = "Rplot",
+#   convert = "magick", 
+#   cmd.fun, 
+#   clean = TRUE,
+#   interval = 0.2)
+
+
+
+
+```
+
